@@ -6,8 +6,6 @@ import pino from 'pino';
 const app = express();
 let qrCodeData = null;
 let isConnected = false;
-
-// SEU ID DE AFILIADO
 const SEU_ID = "costaesilvaerica";
 
 const OFERTAS = [
@@ -19,13 +17,19 @@ const OFERTAS = [
 ];
 
 let ultimo = -1;
-const sortear = () => { let i; do { i = Math.floor(Math.random()*OFERTAS.length) } while(i===ultimo && OFERTAS.length>1); ultimo=i; return OFERTAS[i]; };
+const sortear = () => {
+  let i;
+  do { i = Math.floor(Math.random()*OFERTAS.length) } while(i===ultimo && OFERTAS.length>1);
+  ultimo=i;
+  return OFERTAS[i];
+};
 
 app.get('/', async (req,res)=>{
-  if(isConnected) return res.send('<h1>✅ BOT ON - Preview + Afiliado</h1>');
-  if(!qrCodeData) return res.send('<h1>Gerando QR... da F5</h1>');
-  res.send(`<center><img src="${await QRCode.toDataURL(qrCodeData)}" style="width:330px;border:12px solid #000;margin-top:30px"></center>`);
+  if(isConnected) return res.send('<h1>✅ BOT ON - Rodando</h1>');
+  if(!qrCodeData) return res.send('<h1>Gerando QR... F5 em 5s</h1>');
+  res.send(`<center><img src="${await QRCode.toDataURL(qrCodeData)}" style="width:340px;border:12px solid #000;margin-top:30px"></center>`);
 });
+
 app.listen(process.env.PORT||10000, ()=>console.log('WEB OK'));
 
 async function start(){
@@ -35,29 +39,31 @@ async function start(){
     version, auth: state,
     logger: pino({ level: 'silent' }),
     browser:['Achadinhos','Chrome','1.0'],
-    syncFullHistory:false, markOnlineOnConnect:false,
-    shouldSyncHistoryMessage:()=>false, getMessage:async()=>undefined
+    syncFullHistory:false,
+    markOnlineOnConnect:false,
+    shouldSyncHistoryMessage:()=>false,
+    getMessage:async()=>undefined
   });
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('connection.update', async(u)=>{
-    if(u.qr) qrCodeData=u.qr;
+    if(u.qr) qrCodeData = u.qr;
     if(u.connection==='open'){
       isConnected=true; qrCodeData=null; console.log('CONECTADO');
       await new Promise(r=>setTimeout(r,3000));
       const enviar = async()=>{
         const o = sortear();
-        // LINK DIRETO COM SEU AFILIADO - NÃO USA /social/ MAIS
-        const linkAf = `${o.link}?matt_tool=84859939&matt_source=WHATSAPP&matt_medium=Achadinhos&matt_campaign=GRUPO`;
-        const legenda = `🔥 *${o.titulo.toUpperCase()}* 🔥\n\n❌ De: R$ ${o.antigo}\n✅ Por: *R$ ${o.preco}* - ${o.desc}% OFF\n\n👉 ${linkAf}\n\n_⏰ Oferta por tempo limitado_`;
+        const linkLimpo = o.link;
+        const linkAf = `https://www.mercadolivre.com.br/social/${SEU_ID}?matt_tool=84859939&matt_source=WHATSAPP&url=${encodeURIComponent(o.link)}`;
+        const legenda = `🔥 *${o.titulo.toUpperCase()}* 🔥\n\n❌ De: R$ ${o.antigo}\n✅ Por: *R$ ${o.preco}* - ${o.desc}% OFF\n\n${linkLimpo}\n\n👉 *COMPRAR COM DESCONTO:* ${linkAf}\n\n_⏰ Oferta por tempo limitado_`;
         try{
           const grupos = await sock.groupFetchAllParticipating();
           for(let id in grupos){
             if(!grupos[id].subject.toLowerCase().includes('achadinhos')) continue;
             await sock.sendMessage(id,{text: legenda});
-            console.log('ENVIADO:', o.titulo, '->', id);
+            console.log('ENVIADO:', o.titulo);
             await new Promise(r=>setTimeout(r,1500));
           }
-        }catch(e){ console.log('Erro enviar:', e.message) }
+        }catch(e){ console.log('Erro:', e.message) }
       };
       await enviar();
       setInterval(enviar, 5*60*1000);
