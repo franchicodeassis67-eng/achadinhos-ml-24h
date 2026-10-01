@@ -7,46 +7,35 @@ const app = express();
 let qrCodeData = null;
 let isConnected = false;
 const SEU_ID = "costaesilvaerica";
-const PRODUTOS = ['celular xiaomi','fone bluetooth','smartwatch','jbl','tenis nike','air fryer'];
+const PRODUTOS = ['iphone','jbl','nike','air fryer','smartwatch','perfume importado'];
 let indice = 0;
 
 app.get('/', async (req,res)=>{
-  if(isConnected) return res.send('<h1 style="text-align:center;margin-top:100px">✅ BOT ON - foto corrigida</h1>');
+  if(isConnected) return res.send('<h1 style="text-align:center;margin-top:100px">✅ BOT AFILIADO ON - link direto</h1>');
   if(!qrCodeData) return res.send('<h1 style="text-align:center">Gerando QR... F5 em 10s</h1>');
   const qrImage = await QRCode.toDataURL(qrCodeData);
   res.send(`<div style="text-align:center"><img src="${qrImage}" style="width:340px;border:10px solid black"/></div>`);
 });
 app.listen(process.env.PORT||10000, ()=>console.log('WEB OK'));
 
-async function getImageBuffer(url){
-  try{
-    const r = await axios.get(url, { responseType:'arraybuffer', headers:{'User-Agent':'Mozilla/5.0'}, timeout:10000 });
-    if(r.data) return Buffer.from(r.data);
-  }catch(e){}
-  try{
-    // reserva que SEMPRE funciona
-    const r2 = await axios.get('https://picsum.photos/600', { responseType:'arraybuffer', timeout:10000 });
-    return Buffer.from(r2.data);
-  }catch(e){
-    return null;
-  }
-}
-
 async function buscarOferta(){
   const termo = PRODUTOS[indice % PRODUTOS.length];
   indice++;
-  try{
-    const { data } = await axios.get(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=10`, { headers:{'User-Agent':'Mozilla/5.0'}, timeout:10000 });
-    const p = data.results[Math.floor(Math.random()*5)];
-    const antigo = p.original_price || (p.price*1.45);
-    const desc = Math.round((1-p.price/antigo)*100);
-    const fotoUrl = p.thumbnail.replace('http://','https://').replace('I.jpg','O.jpg');
-    const buffer = await getImageBuffer(fotoUrl);
-    return { titulo:p.title, preco:p.price.toFixed(2), antigo:antigo.toFixed(2), desc:desc>5?desc:40, buffer, link:`https://www.mercadolivre.com.br/social/${SEU_ID}?matt_tool=84859939&url=${encodeURIComponent(p.permalink)}` };
-  }catch(e){
-    const buffer = await getImageBuffer('https://picsum.photos/600');
-    return { titulo:`Oferta ${termo} - Achadinhos 24h`, preco:"79.90", antigo:"199.90", desc:60, buffer, link:`https://www.mercadolivre.com.br/social/${SEU_ID}` };
-  }
+  const { data } = await axios.get(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=20`, { timeout:10000 });
+  // pega só produtos com foto boa
+  const validos = data.results.filter(p=>p.thumbnail && p.permalink);
+  const p = validos[Math.floor(Math.random()*5)];
+  const antigo = p.original_price || (p.price*1.5);
+  const desc = Math.round((1-p.price/antigo)*100);
+  
+  // FOTO via proxy que nunca bloqueia
+  const fotoOriginal = p.thumbnail.replace('http://','https://');
+  const fotoProxy = `https://images.weserv.nl/?url=${encodeURIComponent(fotoOriginal)}&w=600&h=600`;
+
+  // LINK DE AFILIADO DIRETO - vai pro produto e te comissiona
+  const linkAfiliado = `https://www.mercadolivre.com.br/social/${SEU_ID}?matt_tool=84859939&matt_source=WHATSAPP&matt_campaign=ACHADINHOS24H&url=${encodeURIComponent(p.permalink)}`;
+
+  return { titulo:p.title, preco:p.price.toFixed(2), antigo:antigo.toFixed(2), desc:desc>5?desc:45, foto:fotoProxy, link:linkAfiliado, linkReal:p.permalink };
 }
 
 async function start(){
@@ -62,19 +51,13 @@ async function start(){
       const enviar=async()=>{
         try{
           const o = await buscarOferta();
-          const legenda = `🔥 *ACHADINHOS ML 24H* 🔥\n\n📦 ${o.titulo}\n❌ De: R$ ${o.antigo}\n✅ Por: *R$ ${o.preco}* - ${o.desc}% OFF\n🎟️ CUPOM: MELHORESOFERTAS\n\n👉 ${o.link}`;
+          const legenda = `🔥 *${o.titulo.toUpperCase().substring(0,60)}* 🔥\n\n❌ De: R$ ${o.antigo}\n✅ Por: *R$ ${o.preco}* - ${o.desc}% OFF\n\n👉 Compra aqui com desconto:\n${o.link}\n\n_ Link afiliado, você não paga a mais _`;
           const grupos = await sock.groupFetchAllParticipating();
           for(let id in grupos){
-            if(o.buffer){
-              await sock.sendMessage(id, { image:o.buffer, caption:legenda });
-            }else{
-              await sock.sendMessage(id, { text:legenda });
-            }
+            await sock.sendMessage(id, { image:{url:o.foto}, caption:legenda });
+            console.log('Enviado com foto real:', o.titulo);
           }
-          console.log('Enviado OK:', o.titulo);
-        }catch(err){
-          console.log('Erro no enviar:', err.message);
-        }
+        }catch(e){ console.log('Erro enviar:', e.message); }
       };
       await enviar();
       setInterval(enviar, 180000);
