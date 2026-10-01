@@ -1,54 +1,82 @@
 const express = require('express');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode');
+const axios = require('axios');
+const cron = require('node-cron');
 const app = express();
-const PORT = process.env.PORT || 10000;
 
-const SEU_LINK = "costaesilvaerica";
-const CUPOM = "MLMELHORESPROMOS";
+let qrCodeData = null;
+let isReady = false;
 
-// 20 OFERTAS MAIS VENDIDAS ML HOJE
-const OFERTAS = [
-  { nome: "Fone Bluetooth TWS F9", preco: "49,90", antigo: "129,90", id: "MLB1234561" },
-  { nome: "Smartwatch D20 Pro", preco: "79,90", antigo: "199,90", id: "MLB1234562" },
-  { nome: "Air Fryer 4.2L Mondial", preco: "279,00", antigo: "499,00", id: "MLB1234563" },
-  { nome: "Cafeteira Elétrica Cadence", preco: "89,90", antigo: "149,90", id: "MLB1234564" },
-  { nome: "Kit 3 Toalhas Banho", preco: "59,90", antigo: "119,90", id: "MLB1234565" },
-  { nome: "Aspirador Robô", preco: "399,00", antigo: "799,00", id: "MLB1234566" },
-  { nome: "Escova Secadora 3 em 1", preco: "99,90", antigo: "229,90", id: "MLB1234567" },
-  { nome: "Caixa de Som JBL Go 3", preco: "189,00", antigo: "299,00", id: "MLB1234568" },
-  { nome: "Liquidificador Turbo Power", preco: "119,90", antigo: "199,90", id: "MLB1234569" },
-  { nome: "Jogo de Panelas 10pçs", preco: "149,90", antigo: "299,90", id: "MLB1234570" },
-  { nome: "Mop Giratório 360", preco: "69,90", antigo: "139,90", id: "MLB1234571" },
-  { nome: "Câmera Wi-Fi Segurança", preco: "99,00", antigo: "189,00", id: "MLB1234572" },
-  { nome: "Carregador Turbo 33W", preco: "29,90", antigo: "59,90", id: "MLB1234573" },
-  { nome: "Kit Organizador Geladeira", preco: "45,90", antigo: "89,90", id: "MLB1234574" },
-  { nome: "Luminária Astronauta", preco: "55,90", antigo: "109,90", id: "MLB1234575" },
-  { nome: "Tenis Esportivo Masculino", preco: "79,90", antigo: "159,90", id: "MLB1234576" },
-  { nome: "Perfume Importado 100ml", preco: "89,90", antigo: "179,90", id: "MLB1234577" },
-  { nome: "Projetor 4K HD", preco: "299,00", antigo: "599,00", id: "MLB1234578" },
-  { nome: "Balança Digital Bioimpedância", preco: "59,90", antigo: "119,90", id: "MLB1234579" },
-  { nome: "Chaleira Elétrica Inox", preco: "69,90", antigo: "129,90", id: "MLB1234580" }
-];
+const client = new Client({
+  authStrategy: new LocalAuth(),
+  puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+});
 
-async function encurtar(link) {
+client.on('qr', (qr) => {
+  qrCodeData = qr;
+  console.log('QR GERADO - Acesse /qr para ver');
+});
+
+client.on('ready', () => {
+  isReady = true;
+  console.log('WHATSAPP CONECTADO!');
+  enviarOfertas();
+});
+
+// ROTA PARA VER O QR CODE
+app.get('/qr', async (req, res) => {
+  if (!qrCodeData) return res.send('<h1>Gerando QR... atualize em 10s</h1>');
+  const qrImage = await qrcode.toDataURL(qrCodeData);
+  res.send(`<img src="${qrImage}" style="width:300px"><h2>Escaneie no WhatsApp > Aparelhos Conectados</h2>`);
+});
+
+app.get('/', (req, res) => {
+  if (isReady) res.send('✅ ROBÔ CONECTADO E ENVIANDO A CADA 40 MIN');
+  else res.send('<h1>Robô Ligado</h1><a href="/qr"><h2>CLIQUE AQUI PARA VER O QR CODE</h2></a>');
+});
+
+// FUNÇÃO QUE PEGA OFERTAS E ENVIA
+async function enviarOfertas() {
   try {
-    const r = await fetch(`https://is.gd/create.php?format=simple&url=${encodeURIComponent(link)}`);
-    return await r.text();
-  } catch { return link; }
+    // Busca produtos que mais vendem no ML
+    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=ofertas+imperdiveis&sort=sold_quantity_desc&limit=5');
+    const produtos = ml.data.results;
+
+    for (let p of produtos) {
+      const linkAfiliado = p.permalink + '?matt_tool=84859939&matt_word=costaesilvaerica';
+      
+      // Encurta o link
+      let linkCurto = linkAfiliado;
+      try {
+        const curto = await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(linkAfiliado)}`);
+        linkCurto = curto.data.shorturl;
+      } catch(e){}
+
+      const mensagem = `🔥 *ACHADINHO 24H - OFERTA RELÂMPAGO* 🔥\n\n`+
+      `📦 *${p.title}*\n\n`+
+      `💰 De: R$ ${(p.original_price || p.price*1.3).toFixed(2)}\n`+
+      `🔥 Por: *R$ ${p.price.toFixed(2)}*\n\n`+
+      `🎟️ *Cupom: MLMELHORESPROMOS*\n\n`+
+      `👉 Link com desconto:\n${linkCurto}\n\n`+
+      `_Corre que acaba rápido!_`;
+
+      // COLOQUE O ID DO SEU GRUPO AQUI DEPOIS
+      const grupos = await client.getChats();
+      const grupoAlvo = grupos.find(g => g.isGroup && g.name.toLowerCase().includes('achadinho'));
+      
+      if(grupoAlvo) {
+        await client.sendMessage(grupoAlvo.id._serialized, mensagem);
+        await new Promise(r => setTimeout(r, 10000)); // espera 10s entre um e outro
+      }
+    }
+  } catch(err){ console.log(err.message) }
 }
 
-async function enviarTudo() {
-  console.log("ENVIANDO 20 OFERTAS ORGANIZADAS...");
-  for (let p of OFERTAS) {
-    const longo = `https://www.mercadolivre.com.br/search?query=${p.id}&matt_word=${SEU_LINK}`;
-    const curto = await encurtar(longo);
-    
-    const msg = `🔥 *${p.nome}* 🔥\n💰 De ~R$ ${p.antigo}~ Por *R$ ${p.preco}*\n🎁 Cupom: \`${CUPOM}\`\n🔗 ${curto}\n⚡ _FULL 24h_ \n━━━━━━━━━━━━━━`;
-    
-    console.log(msg + "\n");
-    // COLOCA AQUI: client.sendMessage(seuGrupo, msg)
-    await new Promise(r => setTimeout(r, 2000)); // espera 2s entre cada
-  }
-}
+// Envia a cada 40 minutos
+cron.schedule('*/40 * * * *', () => {
+  if(isReady) enviarOfertas();
+});
 
-app.get('/', (req, res) => res.send(`<h1>✅ ML 24H ON - ${SEU_LINK}</h1><p>Rodando com cupom ${CUPOM} e links curtos</p>`));
-app.listen(PORT, () => { console.log("ON"); enviarTudo(); setInterval(enviarTudo, 40*60*1000); });
+client.initialize();
+app.listen(process.env.PORT || 10000);
