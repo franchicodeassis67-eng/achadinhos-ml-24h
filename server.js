@@ -1,7 +1,6 @@
 import express from 'express';
-import pkg from '@whiskeysockets/baileys';
+import makeWASocket, { useMultiFileAuthState } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
-const { default: makeWASocket, useMultiFileAuthState } = pkg;
 
 const app = express();
 let qrCodeData = null;
@@ -9,14 +8,14 @@ let isConnected = false;
 
 app.get('/', async (req,res)=>{
   if(isConnected) return res.send('<h1>✅ BOT CONECTADO! Pode fechar.</h1>');
-  if(!qrCodeData) return res.send('<h1>Aguarde... gerando QR em 10s. Atualize a página (F5)</h1>');
+  if(!qrCodeData) return res.send('<h1>Aguarde... gerando QR. Dá F5 em 10 segundos</h1>');
   const qrImage = await QRCode.toDataURL(qrCodeData);
   res.send(`
     <div style="text-align:center; margin-top:30px; font-family: sans-serif">
       <h2>Escaneia com seu WhatsApp</h2>
       <p>WhatsApp > Aparelhos conectados > Conectar aparelho</p>
-      <img src="${qrImage}" style="width:300px; border:10px solid black;" />
-      <p>Atualize a página se expirar (30 seg)</p>
+      <img src="${qrImage}" style="width:320px; border:10px solid black;" />
+      <p>Se expirar, atualize a página (F5)</p>
     </div>
   `);
 });
@@ -32,7 +31,7 @@ async function start(){
     const { qr, connection } = u;
     if(qr){
       qrCodeData = qr;
-      console.log('NOVO QR GERADO! Abre o link do Render pra escanear!');
+      console.log('NOVO QR GERADO! Abre o link do Render!');
     }
     if(connection==='open'){
       isConnected = true;
@@ -40,7 +39,7 @@ async function start(){
       console.log('CONECTOU!!!!!');
     }
     if(connection==='close'){
-      console.log('Desconectou, gerando outro QR em 5s...');
+      console.log('Fechou, novo QR em 5s...');
       setTimeout(()=>start(),5000);
     }
   });
