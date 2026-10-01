@@ -1,82 +1,53 @@
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode');
 const axios = require('axios');
-const cron = require('node-cron');
 const app = express();
 
-let qrCodeData = null;
-let isReady = false;
-
-const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] }
-});
-
-client.on('qr', (qr) => {
-  qrCodeData = qr;
-  console.log('QR GERADO - Acesse /qr para ver');
-});
-
-client.on('ready', () => {
-  isReady = true;
-  console.log('WHATSAPP CONECTADO!');
-  enviarOfertas();
-});
-
-// ROTA PARA VER O QR CODE
-app.get('/qr', async (req, res) => {
-  if (!qrCodeData) return res.send('<h1>Gerando QR... atualize em 10s</h1>');
-  const qrImage = await qrcode.toDataURL(qrCodeData);
-  res.send(`<img src="${qrImage}" style="width:300px"><h2>Escaneie no WhatsApp > Aparelhos Conectados</h2>`);
-});
-
 app.get('/', (req, res) => {
-  if (isReady) res.send('✅ ROBÔ CONECTADO E ENVIANDO A CADA 40 MIN');
-  else res.send('<h1>Robô Ligado</h1><a href="/qr"><h2>CLIQUE AQUI PARA VER O QR CODE</h2></a>');
+  res.send(`
+  <h1>✅ ROBÔ ACHADINHOS 24H NO AR</h1>
+  <h2><a href="/ofertas">CLIQUE AQUI PARA VER AS OFERTAS PRONTAS</a></h2>
+  <p>Esse link gera 5 ofertas com seu código costaesilvaerica + cupom MLMELHORESPROMOS + link curto is.gd</p>
+  `);
 });
 
-// FUNÇÃO QUE PEGA OFERTAS E ENVIA
-async function enviarOfertas() {
+app.get('/ofertas', async (req, res) => {
   try {
-    // Busca produtos que mais vendem no ML
-    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=ofertas+imperdiveis&sort=sold_quantity_desc&limit=5');
-    const produtos = ml.data.results;
-
-    for (let p of produtos) {
-      const linkAfiliado = p.permalink + '?matt_tool=84859939&matt_word=costaesilvaerica';
-      
-      // Encurta o link
-      let linkCurto = linkAfiliado;
+    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=mais+vendidos&sort=sold_quantity_desc&limit=5');
+    let html = '<h1>🔥 OFERTAS PRONTAS PRA COPIAR PRO GRUPO</h1>';
+    
+    for (let p of ml.data.results) {
+      const linkAfiliado = `${p.permalink}?matt_tool=84859939&matt_word=costaesilvaerica`;
+      let curto = linkAfiliado;
       try {
-        const curto = await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(linkAfiliado)}`);
-        linkCurto = curto.data.shorturl;
+        const r = await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(linkAfiliado)}`);
+        curto = r.data.shorturl;
       } catch(e){}
 
-      const mensagem = `🔥 *ACHADINHO 24H - OFERTA RELÂMPAGO* 🔥\n\n`+
-      `📦 *${p.title}*\n\n`+
-      `💰 De: R$ ${(p.original_price || p.price*1.3).toFixed(2)}\n`+
-      `🔥 Por: *R$ ${p.price.toFixed(2)}*\n\n`+
-      `🎟️ *Cupom: MLMELHORESPROMOS*\n\n`+
-      `👉 Link com desconto:\n${linkCurto}\n\n`+
-      `_Corre que acaba rápido!_`;
-
-      // COLOQUE O ID DO SEU GRUPO AQUI DEPOIS
-      const grupos = await client.getChats();
-      const grupoAlvo = grupos.find(g => g.isGroup && g.name.toLowerCase().includes('achadinho'));
+      const msg = `🔥 *ACHADINHO IMPERDÍVEL* 🔥\n\n📦 ${p.title}\n\n💰 Por: *R$ ${p.price}*\n\n🎟️ Cupom: *MLMELHORESPROMOS*\n👉 ${curto}\n\n_Corre que acaba!_`;
       
-      if(grupoAlvo) {
-        await client.sendMessage(grupoAlvo.id._serialized, mensagem);
-        await new Promise(r => setTimeout(r, 10000)); // espera 10s entre um e outro
-      }
+      html += `<div style="border:1px solid #ccc;padding:15px;margin:15px;border-radius:10px"><p style="white-space:pre-wrap">${msg}</p><button onclick="navigator.clipboard.writeText(\`${msg.replace(/`/g,'')}\`)">COPIAR</button></div>`;
     }
-  } catch(err){ console.log(err.message) }
-}
-
-// Envia a cada 40 minutos
-cron.schedule('*/40 * * * *', () => {
-  if(isReady) enviarOfertas();
+    res.send(html);
+  } catch(e){
+    res.send('Erro: ' + e.message);
+  }
 });
 
-client.initialize();
-app.listen(process.env.PORT || 10000);
+app.get('/api/ofertas-json', async (req, res) => {
+  // Essa rota o WhatsApp vai usar depois
+  try {
+    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=ofertas&limit=1&sort=sold_quantity_desc');
+    const p = ml.data.results[0];
+    const linkAfiliado = `${p.permalink}?matt_tool=84859939&matt_word=costaesilvaerica`;
+    const curtoReq = await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(linkAfiliado)}`);
+    
+    res.json({
+      titulo: p.title,
+      preco: p.price,
+      link_curto: curtoReq.data.shorturl,
+      mensagem_pronta: `🔥 ${p.title}\n💰 R$ ${p.price}\n🎟️ Cupom: MLMELHORESPROMOS\n👉 ${curtoReq.data.shorturl}`
+    });
+  } catch(e){ res.json({error: e.message}) }
+});
+
+app.listen(process.env.PORT || 10000, () => console.log('RODANDO'));
