@@ -50,7 +50,7 @@ async function start(){
   // ===== AQUI COMEÇA A LÓGICA DO BOT =====
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const msg = messages[0];
-    if(!msg.message || msg.key.fromMe) return;
+    if(!msg.message) return; // LIBERADO PRA RESPONDER PRA VC MESMO
     const texto = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").toLowerCase();
     const jid = msg.key.remoteJid;
 
