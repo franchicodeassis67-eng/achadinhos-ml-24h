@@ -7,12 +7,12 @@ const app = express();
 let qrCodeData = null;
 let isConnected = false;
 const SEU_ID = "costaesilvaerica";
-const PRODUTOS = ['iphone 15','jbl boombox','tenis nike','air fryer','smartwatch','perfume importado','geladeira'];
+const PRODUTOS = ['iphone 15','jbl boombox','tenis nike','air fryer','smartwatch','perfume importado','geladeira','notebook'];
 let indice = 0;
 
 app.get('/', async (req,res)=>{
   if(isConnected) return res.send('<h1 style="text-align:center;margin-top:100px">✅ BOT ON - CONECTADO</h1>');
-  if(!qrCodeData) return res.send('<h1 style="text-align:center;margin-top:100px">Gerando QR... atualiza em 10s</h1>');
+  if(!qrCodeData) return res.send('<h1 style="text-align:center;margin-top:100px">Gerando QR... F5 em 10s</h1>');
   const qrImage = await QRCode.toDataURL(qrCodeData);
   res.send(`<center><img src="${qrImage}" style="width:330px;border:12px solid #000;margin-top:30px"><p>Escaneia no WhatsApp</p></center>`);
 });
@@ -20,7 +20,9 @@ app.listen(process.env.PORT||10000, ()=>console.log('WEB OK'));
 
 async function buscarOferta(){
   const termo = PRODUTOS[indice % PRODUTOS.length]; indice++;
-  const { data } = await axios.get(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=15`);
+  const { data } = await axios.get(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termo)}&limit=15`, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'application/json' }
+  });
   const p = data.results[Math.floor(Math.random()*10)];
   const antigo = p.original_price || (p.price*1.35);
   const desc = Math.round((1-p.price/antigo)*100);
@@ -47,7 +49,7 @@ async function start(){
   });
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('connection.update', async(u)=>{
-    const { qr, connection, lastDisconnect } = u;
+    const { qr, connection } = u;
     if(qr){ qrCodeData=qr; console.log('QR GERADO'); }
     if(connection==='open'){
       isConnected=true; qrCodeData=null;
@@ -66,7 +68,7 @@ async function start(){
               if(buf) await sock.sendMessage(id,{image:buf,caption:legenda});
               else await sock.sendMessage(id,{text:legenda});
               await new Promise(r=>setTimeout(r,2500));
-            }catch(e){ console.log('Erro grupo', e.message); }
+            }catch(e){ console.log('Erro envio grupo', e.message); }
           }
           console.log('ENVIO FINALIZADO:', o.titulo);
         }catch(e){ console.log('Erro geral:', e.message); }
@@ -74,11 +76,7 @@ async function start(){
       await enviar();
       setInterval(enviar, 3*60*1000);
     }
-    if(connection==='close'){
-      isConnected=false;
-      console.log('Desconectado, reconectando...');
-      setTimeout(()=>start(),3000);
-    }
+    if(connection==='close'){ isConnected=false; setTimeout(()=>start(),3000); }
   });
 }
 start();
