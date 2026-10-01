@@ -11,7 +11,7 @@ async function iniciaZap() {
   // SE NÃO ESTIVER CONECTADO, GERA CÓDIGO DE 8 DÍGITOS
   if (!sock.authState.creds.registered) {
     await new Promise(r => setTimeout(r, 3000));
-    const numero = "55SEUNUMEROAQUI"; // <--- COLOCA SEU NUMERO COM DDD EX: 5511999999999
+    const numero = "5511914098689"; // <--- COLOCA SEU NUMERO COM DDD EX: 5511999999999
     const code = await sock.requestPairingCode(numero);
     console.log(`SEU CÓDIGO DE PAREAMENTO: ${code}`);
     global.codigoPareamento = code;
