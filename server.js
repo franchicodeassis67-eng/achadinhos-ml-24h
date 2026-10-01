@@ -1,53 +1,51 @@
 const express = require('express');
 const axios = require('axios');
+const qrcode = require('qrcode');
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const app = express();
+let sock, qrDinamico = null;
 
-app.get('/', (req, res) => {
-  res.send(`
-  <h1>✅ ROBÔ ACHADINHOS 24H NO AR</h1>
-  <h2><a href="/ofertas">CLIQUE AQUI PARA VER AS OFERTAS PRONTAS</a></h2>
-  <p>Esse link gera 5 ofertas com seu código costaesilvaerica + cupom MLMELHORESPROMOS + link curto is.gd</p>
-  `);
-});
+async function iniciaZap() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth');
+  sock = makeWASocket({ auth: state, printQRInTerminal: true });
+  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('connection.update', async (u) => {
+    if (u.qr) { qrDinamico = u.qr; console.log('NOVO QR GERADO'); }
+    if (u.connection === 'open') { console.log('ZAP CONECTADO'); enviarOfertas(); }
+  });
+}
 
-app.get('/ofertas', async (req, res) => {
+async function enviarOfertas() {
   try {
-    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=mais+vendidos&sort=sold_quantity_desc&limit=5');
-    let html = '<h1>🔥 OFERTAS PRONTAS PRA COPIAR PRO GRUPO</h1>';
-    
+    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=ofertas+do+dia&limit=3&sort=sold_quantity_desc');
     for (let p of ml.data.results) {
-      const linkAfiliado = `${p.permalink}?matt_tool=84859939&matt_word=costaesilvaerica`;
-      let curto = linkAfiliado;
-      try {
-        const r = await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(linkAfiliado)}`);
-        curto = r.data.shorturl;
-      } catch(e){}
+      const link = `${p.permalink}?matt_tool=84859939&matt_word=costaesilvaerica`;
+      const curto = (await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(link)}`)).data.shorturl;
+      const msg = `🔥 *ACHADINHOS 24H* 🔥\n\n📦 ${p.title}\n\n💰 *R$ ${p.price}*\n🎟️ Cupom: *MLMELHORESPROMOS*\n👉 ${curto}\n\nCorre!`;
 
-      const msg = `🔥 *ACHADINHO IMPERDÍVEL* 🔥\n\n📦 ${p.title}\n\n💰 Por: *R$ ${p.price}*\n\n🎟️ Cupom: *MLMELHORESPROMOS*\n👉 ${curto}\n\n_Corre que acaba!_`;
-      
-      html += `<div style="border:1px solid #ccc;padding:15px;margin:15px;border-radius:10px"><p style="white-space:pre-wrap">${msg}</p><button onclick="navigator.clipboard.writeText(\`${msg.replace(/`/g,'')}\`)">COPIAR</button></div>`;
+      // Pega todos os grupos e manda no que tem "achadinho" no nome
+      const grupos = await sock.groupFetchAllParticipating();
+      for (let id in grupos) {
+        if (grupos[id].subject.toLowerCase().includes('achadinho')) {
+          await sock.sendMessage(id, { text: msg });
+        }
+      }
     }
-    res.send(html);
-  } catch(e){
-    res.send('Erro: ' + e.message);
-  }
+  } catch(e){ console.log(e.message) }
+}
+
+iniciaZap();
+setInterval(() => { if(sock) enviarOfertas() }, 40*60*1000); // 40 min
+
+app.get('/qr', async (req, res) => {
+  if (!qrDinamico) return res.send('<h1>Aguarde 10s e atualize...</h1><script>setTimeout(()=>location.reload(),5000)</script>');
+  const img = await qrcode.toDataURL(qrDinamico);
+  res.send(`<center><h1>Escaneie o QR no WhatsApp</h1><img src="${img}" width="350"><p>WhatsApp > Aparelhos Conectados > Conectar aparelho</p></center>`);
+});
+app.get('/', (req, res) => res.send('<h1>Robô ON</h1><a href="/qr"><h2>VER QR CODE</h2></a><br><a href="/ofertas">VER OFERTAS</a>'));
+app.get('/ofertas', async (req,res)=>{
+  const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=mais+vendidos&limit=3');
+  let h=''; for(let p of ml.data.results){ const l=`${p.permalink}?matt_tool=84859939&matt_word=costaesilvaerica`; const c=(await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(l)}`)).data.shorturl; h+=`<p>🔥 ${p.title}<br>R$ ${p.price}<br>Cupom: MLMELHORESPROMOS<br>${c}</p><hr>`} res.send(h);
 });
 
-app.get('/api/ofertas-json', async (req, res) => {
-  // Essa rota o WhatsApp vai usar depois
-  try {
-    const ml = await axios.get('https://api.mercadolibre.com/sites/MLB/search?q=ofertas&limit=1&sort=sold_quantity_desc');
-    const p = ml.data.results[0];
-    const linkAfiliado = `${p.permalink}?matt_tool=84859939&matt_word=costaesilvaerica`;
-    const curtoReq = await axios.get(`https://is.gd/create.php?format=json&url=${encodeURIComponent(linkAfiliado)}`);
-    
-    res.json({
-      titulo: p.title,
-      preco: p.price,
-      link_curto: curtoReq.data.shorturl,
-      mensagem_pronta: `🔥 ${p.title}\n💰 R$ ${p.price}\n🎟️ Cupom: MLMELHORESPROMOS\n👉 ${curtoReq.data.shorturl}`
-    });
-  } catch(e){ res.json({error: e.message}) }
-});
-
-app.listen(process.env.PORT || 10000, () => console.log('RODANDO'));
+app.listen(process.env.PORT || 10000);
