@@ -63,6 +63,26 @@ async function start(){
   });
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
+    console.log("Mensagem recebida:", messages[0]?.message?.conversation || messages[0]?.message?.extendedTextMessage?.text);
+    const msg = messages[0];
+    if(!msg.message) return;
+    if(msg.key.fromMe) return; // não responde ele mesmo
+    const texto = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").toLowerCase();
+    const jid = msg.key.remoteJid;
+    console.log("Texto:", texto, "JID:", jid);
+    if(texto.includes('oi') || texto.includes('oferta') || texto.includes('foto')){
+      try{
+        const o = await buscarOferta();
+        console.log("Oferta buscada:", o.titulo);
+        const legenda = `🔥 *ACHADINHOS MERCADO LIVRE 24H* 🔥\n\n📦 ${o.titulo}\n❌ De: R$ ${o.antigo}\n✅ Por: *R$ ${o.preco}* - ${o.desc}% OFF\n🎟️ CUPOM: MELHORESOFERTAS\n\n👉 ${o.link}`;
+        await sock.sendMessage(jid, { image: { url: o.foto }, caption: legenda });
+        console.log("Respondeu com foto!");
+      }catch(e){
+        console.log("Erro ao responder:", e.message);
+        await sock.sendMessage(jid, { text: "Achei oferta! 👉 https://www.mercadolivre.com.br/social/"+SEU_ID });
+      }
+    }
+  });
     const msg = messages[0]; if(!msg.message) return;
     const texto = (msg.message.conversation || msg.message.extendedTextMessage?.text || "").toLowerCase();
     const jid = msg.key.remoteJid;
