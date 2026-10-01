@@ -4,38 +4,30 @@ const { useMultiFileAuthState } = pkg;
 const makeWASocket = pkg.default;
 
 const app = express();
-app.get('/', (req,res)=>res.send('BOT ERICA ON - 24H'));
-app.listen(process.env.PORT || 10000, ()=>console.log('WEB OK - LIVE'));
-
-console.log('Iniciando bot...');
+app.get('/', (req,res)=>res.send('BOT ON'));
+app.listen(process.env.PORT || 10000, ()=>console.log('WEB OK'));
 
 async function start(){
-  try{
-    const { state, saveCreds } = await useMultiFileAuthState('./auth');
-    console.log('Auth ok, criando socket...');
-    
-    const sock = makeWASocket({ 
-      auth: state, 
-      printQRInTerminal: false,
-      browser: ['Achadinhos','Chrome','1.0'] 
-    });
-    
-    sock.ev.on('creds.update', saveCreds);
-    
-    if(!sock.authState.creds.registered){
-      console.log('Gerando codigo...');
-      await new Promise(r=>setTimeout(r,2000));
-      const code = await sock.requestPairingCode('5511914098689');
-      console.log('\n\n===== CODIGO ERICA: '+code+' =====\n\n');
-    }
-    
-    sock.ev.on('connection.update', (up)=>{
-      console.log('Status:', up.connection);
-      if(up.connection==='open') console.log('CONECTADO COM SUCESSO!!!');
-    });
-    
-  }catch(e){
-    console.log('ERRO:', e.message);
+  const { state, saveCreds } = await useMultiFileAuthState('./auth_nova');
+  const sock = makeWASocket({ auth: state, browser: ['Achadinhos','Chrome','1.0'] });
+  sock.ev.on('creds.update', saveCreds);
+
+  if(!sock.authState.creds.registered){
+    setTimeout(async()=>{
+      try{
+        const code = await sock.requestPairingCode('5511914098689');
+        console.log(`\n\n===== NOVO CODIGO: ${code} =====\n\n`);
+      }catch(e){ console.log('Erro:', e.message); }
+    },3000);
   }
+
+  sock.ev.on('connection.update', (u)=>{
+    console.log('Status:', u.connection);
+    if(u.connection==='open') console.log('CONECTOU!!!');
+    if(u.connection==='close'){
+      console.log('Fechou, vai gerar novo em 10s');
+      setTimeout(()=>start(),10000);
+    }
+  });
 }
 start();
