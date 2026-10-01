@@ -1,5 +1,7 @@
 import express from 'express';
-import makeWASocket, { useMultiFileAuthState } from '@whiskeysockets/baileys';
+import pkg from '@whiskeysockets/baileys';
+const { useMultiFileAuthState } = pkg;
+const makeWASocket = pkg.default;
 
 const app = express();
 app.get('/', (req,res)=>res.send('BOT ERICA ON - 24H'));
@@ -28,18 +30,12 @@ async function start(){
     }
     
     sock.ev.on('connection.update', (up)=>{
-      console.log('Status conexao:', up.connection);
+      console.log('Status:', up.connection);
       if(up.connection==='open') console.log('CONECTADO COM SUCESSO!!!');
     });
     
   }catch(e){
-    console.log('ERRO BOT (mas web continua ON):', e.message);
-    console.log(e.stack);
+    console.log('ERRO:', e.message);
   }
 }
-
 start();
-
-// nao deixa cair nunca
-process.on('uncaughtException', (e)=>console.log('Erro capturado:', e.message));
-process.on('unhandledRejection', (e)=>console.log('Rejection capturada:', e.message));
