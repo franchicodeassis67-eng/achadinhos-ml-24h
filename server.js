@@ -5,7 +5,6 @@ import axios from 'axios';
 const app = express();
 const TOKEN = "8740167282:AAF5yoisDDEt9eTJmexx-TiipbanZm8Rnts";
 const CHAT_ID = "@Achadinhos2_ML";
-const SEU_ID = "costaesilvaerica";
 
 const bot = new TelegramBot(TOKEN, { polling: false });
 
@@ -18,20 +17,18 @@ const OFERTAS = [
 
 async function enviar(){
   const o = OFERTAS[Math.floor(Math.random()*OFERTAS.length)];
-  const linkAf = `https://www.mercadolivre.com.br/social/${SEU_ID}?matt_tool=84859939&url=${encodeURIComponent(o.link)}`;
+  const linkAf = `${o.link}?matt_tool=84859939&matt_word=TELEGRAM&matt_source=ACHADINHOS_ML&matt_campaign=TELEGRAM_BOT`;
   const legenda = `🔥 *${o.titulo.toUpperCase()}* 🔥\n\n❌ De: ${o.antigo}\n✅ Por: *${o.preco}*\n\n👉 [🛒 COMPRAR COM DESCONTO](${linkAf})\n\n_⏰ Oferta por tempo limitado!_`;
   try{
     const r = await axios.get(o.foto, { responseType: 'arraybuffer', timeout: 10000 });
     await bot.sendPhoto(CHAT_ID, Buffer.from(r.data), { caption: legenda, parse_mode: "Markdown" });
-    console.log("ENVIADO COM FOTO OK:", o.titulo);
+    console.log("ENVIADO OK:", o.titulo);
   }catch(e){
-    console.log("Erro foto:", e.message);
-    await bot.sendMessage(CHAT_ID, legenda, { parse_mode: "Markdown" });
+    console.log("Erro:", e.message);
   }
 }
 
-app.get('/', (req,res)=>res.send('BOT ON'));
-app.listen(process.env.PORT || 10000);
-
+app.get('/', (req,res)=>res.send('BOT 100% ON'));
+app.listen(process.env.PORT || 10000, ()=>console.log('WEB OK'));
 enviar();
 setInterval(enviar, 5*60*1000);
