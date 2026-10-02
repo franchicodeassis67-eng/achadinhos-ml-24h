@@ -3,7 +3,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import axios from 'axios';
 
 const app = express();
-const TOKEN = "8740167282:AAF5yoisDDEt9eTJmexx-TiipbanZm8Rnts";
+const TOKEN = "";
 const CHAT_ID = "@Achadinhos2_ML";
 const SEU_USER = "costaesilvaerica";
 
