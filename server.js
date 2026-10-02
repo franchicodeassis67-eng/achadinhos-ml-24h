@@ -1,7 +1,6 @@
 import express from 'express';
 import TelegramBot from 'node-telegram-bot-api';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 const app = express();
 const TOKEN = "8740167282:AAF5yoisDDEt9eTJmexx-TiipbanZm8Rnts";
@@ -9,43 +8,26 @@ const CHAT_ID = "@Achadinhos2_ML";
 const SEU_USER = "costaesilvaerica";
 const bot = new TelegramBot(TOKEN, { polling: false });
 
-const LINKS = [
-  "https://www.mercadolivre.com.br/apple-iphone-15-128-gb-preto/p/MLB27162815",
-  "https://www.mercadolivre.com.br/tenis-nike-revolution-6-next-nature-masculino/p/MLB19644530",
-  "https://www.mercadolivre.com.br/fritadeira-eletrica-mondial-air-fryer-afn-40-bfs-42l-preta/p/MLB15177996"
+const OFERTAS = [
+  { titulo: "Fone JBL Wave Buds - Bluetooth", preco: "149,90", antigo: "299,90", foto: "https://http2.mlstatic.com/D_NQ_NP_2X_847707-MLA80635305267_112024-F.webp", link: "https://www.mercadolivre.com.br/fone-de-ouvido-jbl-wave-buds/p/MLB15177996" },
+  { titulo: "Tênis Nike Revolution 6 Masculino", preco: "199,90", antigo: "349,90", foto: "https://http2.mlstatic.com/D_NQ_NP_2X_612326-MLA71796351269_092023-F.webp", link: "https://www.mercadolivre.com.br/tenis-nike-revolution-6-next-nature-masculino/p/MLB19644530" },
+  { titulo: "Smartwatch Xiaomi Band 8", preco: "199,90", antigo: "399,90", foto: "https://http2.mlstatic.com/D_NQ_NP_2X_738765-MLA79495489234_092024-F.webp", link: "https://www.mercadolivre.com.br/xiaomi-smart-band-8/p/MLB2678426417" }
 ];
 
-const GANCHOS = ["🔥 PREÇO DESPENCU", "⚡️ CORRE QUE ABAIXOU", "💸 METADE DO PREÇO", "🚀 OFERTA RELÂMPAGO", "😱 TÁ MUITO BARATO"];
-
-async function pegarDados(link){
-  try{
-    const { data } = await axios.get(link, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const $ = cheerio.load(data);
-    const titulo = $('h1').first().text().trim().substring(0,100);
-    const preco = $('.andes-money-amount__fraction').first().text().trim();
-    const foto = $('meta[property="og:image"]').attr('content');
-    return { titulo, preco, foto };
-  }catch(e){
-    return { titulo: "Oferta Imperdível", preco: "199", foto: "https://http2.mlstatic.com/D_NQ_NP_2X_123456-MLA.jpg" };
-  }
-}
-
 async function enviar(){
-  const link = LINKS[Math.floor(Math.random()*LINKS.length)];
-  const dados = await pegarDados(link);
-  const gancho = GANCHOS[Math.floor(Math.random()*GANCHOS.length)];
-  const linkAf = `https://www.mercadolivre.com.br/social/${SEU_USER}?matt_tool=84859939&matt_source=TELEGRAM&url=${encodeURIComponent(link)}`;
-
-  const legenda = `${gancho}\n**${dados.titulo}**\n\n💸 DE: ~R$ ${Number(dados.preco)*1.7.toFixed(0)},00~\n🔥 POR: R$ ${dados.preco}\n💳 ou em 10x de R$ ${(dados.preco/10).toFixed(2)} sem juros\n\n🔗 ${linkAf}\n\n⚠️ Preço e estoque sujeitos a alteração.`;
+  const o = OFERTAS[Math.floor(Math.random()*OFERTAS.length)];
+  const linkAf = `https://www.mercadolivre.com.br/social/${SEU_USER}?matt_tool=84859939&matt_source=TELEGRAM&matt_campaign=GT&url=${encodeURIComponent(o.link)}`;
+  
+  const legenda = `⚡️ *${o.titulo.toUpperCase()}* ⚡️\n\n💸 DE: ~R$ ${o.antigo}~\n🔥 POR: *R$ ${o.preco}*\n💳 em 10x de R$ ${(parseFloat(o.preco.replace(',','.'))/10).toFixed(2)}\n\n🔗 👉 [COMPRAR AGORA](${linkAf})\n\n⚠️ Preço pode mudar a qualquer hora!`;
 
   try{
-    const r = await axios.get(dados.foto, { responseType: 'arraybuffer', timeout: 15000 });
+    const r = await axios.get(o.foto, { responseType: 'arraybuffer', timeout: 15000 });
     await bot.sendPhoto(CHAT_ID, Buffer.from(r.data), { caption: legenda, parse_mode: "Markdown" });
-    console.log("ENVIADO ESTILO GT:", dados.titulo);
+    console.log("ENVIADO:", o.titulo);
   }catch(e){ console.log("Erro:", e.message); }
 }
 
-app.get('/', (req,res)=>res.send('BOT GT ON'));
-app.listen(process.env.PORT || 10000);
+app.get('/', (req,res)=>res.send('BOT ON'));
+app.listen(process.env.PORT || 10000, ()=>console.log('OK'));
 enviar();
-setInterval(enviar, 15*60*1000);
+setInterval(enviar, 10*60*1000);
